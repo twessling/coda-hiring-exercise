@@ -53,15 +53,18 @@ most of all have fun writing the code!
 
 ==================================================
 
+Notes from @twessling:
 
 - Made 2 docker containers, one for Api and one for Router
 - Made a makefile with useful targets for building/running/scaling: use 'make help' for a list of targets
-- Made the API register itself with the router on startup, and ping for keeping alive
+- Made the API register itself with the router on startup, and ping for keeping alive (seemed more fun & scalable than hard-configuring hostnames etc)
 - Router will remove Api handler addresses if it hasn't received a ping in a while
 - Supporting shutdown sequence nicely
+- not using any outside frameworks/packages, all std library
+- yes of course I used google :P
 
 not done (yet):
 - unit tests for both Api and Router
-- handle slowness of api calls
+- handle slowness of api calls, probably need a ratelimiter per host.
 - proper logging framework (the default is a bit too basic imo)
 - integration tests (I will skip this for now, would require yet another component) but should be easy locally if you can run multiple Api's already - I have already added a particular header 'X-Handled-By' to identify to outside which instance handled the traffic. You can then fire a bunch of results and check that that response header changes.
