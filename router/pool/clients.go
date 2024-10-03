@@ -1,8 +1,11 @@
 package pool
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -35,7 +38,7 @@ func New(cfg *Config) *ClientPool {
 		mux:                http.NewServeMux(),
 	}
 
-	cp.mux.HandleFunc(http.MethodPost, cp.registerClient)
+	cp.mux.HandleFunc(fmt.Sprintf("%s /", http.MethodPost), cp.registerClient)
 	return cp
 }
 
@@ -56,9 +59,23 @@ func (cp *ClientPool) Next() (string, error) {
 	return addr, nil
 }
 
-func (cp *ClientPool) ListenForClients() error {
+func (cp *ClientPool) ListenForClients(ctx context.Context) error {
 	go cp.runCleanPool()
-	return http.ListenAndServe(cp.registerListenAddr, cp.mux)
+
+	server := &http.Server{Addr: cp.registerListenAddr, Handler: cp.mux}
+
+	// listen for context to stop server gracefully
+	go func() {
+		<-ctx.Done()
+		log.Printf("Gracefully sutting down client listener...")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(ctx); err != nil {
+			log.Fatalf("Server Shutdown Failed: %v", err)
+		}
+	}()
+
+	return server.ListenAndServe()
 }
 
 func (cp *ClientPool) registerClient(w http.ResponseWriter, req *http.Request) {
@@ -79,12 +96,13 @@ func (cp *ClientPool) registerClient(w http.ResponseWriter, req *http.Request) {
 	// this is a new client
 	cp.addrs = append(cp.addrs, addr)
 	cp.notifTimes[addr] = time.Now()
+	log.Printf("INFO: added client %s", addr)
 }
 
 func (cp *ClientPool) runCleanPool() {
 	t := time.NewTicker(time.Second)
 	var needsClean bool
-	for _ = range t.C {
+	for range t.C {
 		needsClean = false
 		for _, notifTime := range cp.notifTimes {
 			if notifTime.Add(cp.maxAgeNoNotif).Before(time.Now()) {
@@ -106,6 +124,7 @@ func (cp *ClientPool) cleanPool() {
 	newNotifTimes := map[string]time.Time{}
 	for addr, notifTime := range cp.notifTimes {
 		if notifTime.Add(cp.maxAgeNoNotif).Before(time.Now()) {
+			log.Printf("INFO: removing client %s", addr)
 			continue
 		}
 		newAddrs = append(newAddrs, addr)

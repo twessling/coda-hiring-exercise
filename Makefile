@@ -1,7 +1,7 @@
 # Variables
 DOCKER_COMPOSE_FILE := docker-compose.yml
 DOCKER_API_BASE_IMAGE_NAME := coda-api
-DOCKER_router_IMAGE_NAME := coda-router
+DOCKER_ROUTER_IMAGE_NAME := coda-router
 DOCKER_DB_IMAGE_NAME := coda-roundrobin-db
 BINARY_API_NAME := coda-api
 BINARY_ROUTER_NAME := coda-router
@@ -64,7 +64,7 @@ router-compile:
 # Build the Docker image for router
 router-makedocker:
 	@echo "Building Docker image for Go app..."
-	docker build -t $(DOCKER_ROUTER_IMAGE_NAME) .
+	docker build -t $(DOCKER_ROUTER_IMAGE_NAME) router
 
 # run a single instance of router
 router-start: router-stop
