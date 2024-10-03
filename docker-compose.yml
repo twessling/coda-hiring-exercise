@@ -1,0 +1,19 @@
+# Use root/example as user/password credentials
+version: '3.1'
+
+services:
+
+  coda-api:
+    image: coda-api
+    restart: always
+    environment:
+      REGISTRY_ADDR: "http://coda-router:8081/"
+
+  coda-router:
+      image: coda-router
+      environment:
+        HTTP_ADDR: ":8080"
+        ROUTER_ADDR: ":8081"
+      ports:
+      # only expose 8080 to outside network, 8081 will be internal only
+      - 8080:8080
