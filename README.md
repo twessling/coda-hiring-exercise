@@ -59,13 +59,15 @@ Notes from @twessling:
 - Made a makefile with useful targets for building/running/scaling: use 'make help' for a list of targets
 - Made the API register itself with the router on startup, and ping for keeping alive (seemed more fun & scalable than hard-configuring hostnames etc)
 - Router will remove Api handler addresses if it hasn't received a ping in a while
-- Supporting shutdown sequence nicely
+- Supporting shutdown sequence nicely (except for docker deciding to restart containers when scaling up/down)
 - not using any outside frameworks/packages, all std library
+- unit tests for both Api and Router (the testable & useful bits that is)
 - yes of course I used google :P
 
 not done (yet):
-- unit tests for both Api and Router
-- handle slowness of api calls, probably need a ratelimiter per host.
+- handle slowness of api calls, probably need a ratelimiter per host. -> introduce a struct for a client, with rate limiter code on it. During round-robin selection, can ask whether this client can accept a call again. If not, skip and go to next.
 - proper logging framework (the default is a bit too basic imo)
-- integration tests (I will skip this for now, would require yet another component) but should be easy locally if you can run multiple Api's already - I have already added a particular header 'X-Handled-By' to identify to outside which instance handled the traffic. You can then fire a bunch of results and check that that response header changes.
-  or you can use: $ for i in `seq 1 30`; do curl -v -XPOST http://localhost:8080/json --data-binary "{\"foo\":123}" 2>&1 | grep Handled ; done
+- proper testing frameworks like testify (get nicer code & error messages and utility functions)
+- integration tests. I made a very basic & pragmatic approach by adding a random ID to the Api handlers, and a particular header 'X-Handled-By' to identify to outside which instance handled the traffic. You can then fire a bunch of results and check that that response header changes:
+    $ for i in `seq 1 30`; do curl -v -XPOST http://localhost:8080/json --data-binary "{\"foo\":123}" 2>&1 | grep Handled ; done
+    $ watch -d -n0.5 'date; curl --include -XPOST http://localhost:8080/json --data-binary "{\"foo\":123}" 2>&1'

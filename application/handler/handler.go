@@ -51,7 +51,7 @@ func (h *Handler) ListenAndServe(ctx context.Context) error {
 	return server.ListenAndServe()
 }
 
-func (j *Handler) handlePostJson(w http.ResponseWriter, req *http.Request) {
+func (h *Handler) handlePostJson(w http.ResponseWriter, req *http.Request) {
 	bytes, err := io.ReadAll(req.Body)
 	defer req.Body.Close()
 	if err != nil {
@@ -64,7 +64,7 @@ func (j *Handler) handlePostJson(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	w.Header().Add(handledByHeader, j.id)
+	w.Header().Add(handledByHeader, h.id)
 	_, err = w.Write(bytes)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
