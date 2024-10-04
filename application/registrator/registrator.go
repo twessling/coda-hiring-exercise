@@ -54,4 +54,5 @@ func (r *Registrator) Run(ctx context.Context) error {
 			}
 		}
 	}
+	// TODO: add a defer to explicitly de-register itself
 }

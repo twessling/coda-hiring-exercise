@@ -1,6 +1,32 @@
 # coda-hiring-exercise
 Hiring exercise coda shop/payments
 
+Notes from @twessling:
+
+- Made 2 docker containers, one for Api and one for Router
+- Made a makefile with useful targets for building/running/scaling: use **make help** for a list of targets
+- Made the API register itself with the router on startup, and ping for keeping alive (seemed more fun & scalable than hard-configuring hostnames etc)
+- Router will remove Api handler addresses if it hasn't received a ping in a while
+- Supporting shutdown sequence nicely (except for docker deciding to restart containers when scaling up/down)
+- not using any outside frameworks/packages, all std library
+- unit tests for both Api and Router (the testable & useful bits that is)
+- yes of course I used google :P
+
+not done to keep scope somewhat reasonable (but I would want to add):
+- explicit de-registering of clients upon shutdown, then pool doesn't have to wait for the timeout
+- handle slowness of api calls, probably need a ratelimiter per registered host. -> introduce a struct for a client, with rate limiter code on it. During round-robin selection, can ask whether this client can accept a call again. If not, skip and go to next. see https://pkg.go.dev/golang.org/x/time/rate for that.
+- proper logging framework (the default is a bit too basic imo) - I wanted to stick with the standard library only to make things easier for non-go devs
+- proper testing frameworks like testify (get nicer code & error messages and utility functions) - I wanted to stick with the standard library only to make things easier for non-go devs
+- unit tests to validate parallel access to routing pool works properly
+- integration tests. I made a very basic & pragmatic approach by adding a random ID to the Api handlers, and a particular header 'X-Handled-By' to identify to outside which instance handled the traffic. You can then fire a bunch of results and check that that response header changes:
+    $ for i in `seq 1 30`; do curl --include -XPOST http://localhost:8080/json --data-binary "{\"foo\":123}" 2>&1 | grep Handled ; done
+    $ watch -d -n0.5 'date; curl -s --include -XPOST http://localhost:8080/json --data-binary "{\"foo\":123}" 2>&1'
+
+
+================================================
+Exercise:
+
+
 HTTP Round Robin API
 
 Goal: Write a Round Robin API which receives HTTP POSTS and routes them to one of a list of
@@ -49,26 +75,3 @@ interview). During the demo you will share your screen and review the code live 
 with our interviewers.
 We want to be respectful of your time so please time-box how much effort to put into this and
 most of all have fun writing the code!
-
-
-==================================================
-
-Notes from @twessling:
-
-- Made 2 docker containers, one for Api and one for Router
-- Made a makefile with useful targets for building/running/scaling: use 'make help' for a list of targets
-- Made the API register itself with the router on startup, and ping for keeping alive (seemed more fun & scalable than hard-configuring hostnames etc)
-- Router will remove Api handler addresses if it hasn't received a ping in a while
-- Supporting shutdown sequence nicely (except for docker deciding to restart containers when scaling up/down)
-- not using any outside frameworks/packages, all std library
-- unit tests for both Api and Router (the testable & useful bits that is)
-- yes of course I used google :P
-
-not done (yet):
-- handle slowness of api calls, probably need a ratelimiter per host. -> introduce a struct for a client, with rate limiter code on it. During round-robin selection, can ask whether this client can accept a call again. If not, skip and go to next.
-- proper logging framework (the default is a bit too basic imo)
-- proper testing frameworks like testify (get nicer code & error messages and utility functions)
-- unit tests to validate parallel access to routing pool works properly
-- integration tests. I made a very basic & pragmatic approach by adding a random ID to the Api handlers, and a particular header 'X-Handled-By' to identify to outside which instance handled the traffic. You can then fire a bunch of results and check that that response header changes:
-    $ for i in `seq 1 30`; do curl -v -XPOST http://localhost:8080/json --data-binary "{\"foo\":123}" 2>&1 | grep Handled ; done
-    $ watch -d -n0.5 'date; curl --include -XPOST http://localhost:8080/json --data-binary "{\"foo\":123}" 2>&1'
