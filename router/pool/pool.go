@@ -17,35 +17,39 @@ type PoolConfig struct {
 type ClientPool struct {
 	lock          sync.Mutex
 	maxAgeNoNotif time.Duration
-	lastAddrIdx   int
-	addrs         []string
+	lastEntryIdx  int
+	entries       []*poolEntry
 	notifTimes    map[string]time.Time
 }
 
 func NewPool(cfg *PoolConfig) *ClientPool {
 	return &ClientPool{
 		maxAgeNoNotif: cfg.MaxAgeNoNotif,
-		lastAddrIdx:   0,
-		addrs:         []string{},
+		lastEntryIdx:  0,
+		entries:       []*poolEntry{},
 		notifTimes:    map[string]time.Time{},
 	}
 }
 
-func (cp *ClientPool) Next() (string, error) {
+func (cp *ClientPool) Next() (Forwarder, error) {
+	return cp.next()
+}
+
+func (cp *ClientPool) next() (*poolEntry, error) {
 	cp.lock.Lock()
 	defer cp.lock.Unlock()
 
-	if len(cp.addrs) == 0 {
-		return "", errNoClients
+	if len(cp.entries) == 0 {
+		return nil, errNoClients
 	}
 
-	if cp.lastAddrIdx >= len(cp.addrs) {
-		cp.lastAddrIdx = 0
+	if cp.lastEntryIdx >= len(cp.entries) {
+		cp.lastEntryIdx = 0
 	}
 
-	addr := cp.addrs[cp.lastAddrIdx]
-	cp.lastAddrIdx++
-	return addr, nil
+	hostEntry := cp.entries[cp.lastEntryIdx]
+	cp.lastEntryIdx++
+	return hostEntry, nil
 }
 
 func (cp *ClientPool) registerClient(addr string) {
@@ -58,9 +62,9 @@ func (cp *ClientPool) registerClient(addr string) {
 	}
 
 	// this is a new client
-	cp.addrs = append(cp.addrs, addr)
+	cp.entries = append(cp.entries, &poolEntry{Addr: addr, weight: 100, movingWindow: newMovingWindow()})
 	cp.notifTimes[addr] = time.Now()
-	log.Printf("INFO: added client %s for a total of %d", addr, len(cp.addrs))
+	log.Printf("INFO: added client %s for a total of %d", addr, len(cp.entries))
 }
 
 func (cp *ClientPool) deRegisterClient(addr string) {
@@ -68,21 +72,21 @@ func (cp *ClientPool) deRegisterClient(addr string) {
 	defer cp.lock.Unlock()
 
 	delete(cp.notifTimes, addr)
-	for i := 0; i < len(cp.addrs); i++ {
-		if cp.addrs[i] == addr {
-			if i == len(cp.addrs)-1 {
-				cp.addrs = cp.addrs[:i] // If it's the last element, return up to the last
+	for i := 0; i < len(cp.entries); i++ {
+		if cp.entries[i].Addr == addr {
+			if i == len(cp.entries)-1 {
+				cp.entries = cp.entries[:i] // If it's the last element, return up to the last
 			} else {
-				cp.addrs = append(cp.addrs[:i], cp.addrs[i+1:]...)
+				cp.entries = append(cp.entries[:i], cp.entries[i+1:]...)
 			}
 			break
 		}
 	}
-	if cp.lastAddrIdx >= len(cp.addrs) {
+	if cp.lastEntryIdx >= len(cp.entries) {
 		// reset when necessary. Next() checks for proper value, but better to be explicit.
-		cp.lastAddrIdx = 0
+		cp.lastEntryIdx = 0
 	}
-	log.Printf("INFO: deregistered client %s for a total of %d", addr, len(cp.addrs))
+	log.Printf("INFO: deregistered client %s for a total of %d", addr, len(cp.entries))
 }
 
 func (cp *ClientPool) Run(ctx context.Context) {
@@ -112,23 +116,26 @@ func (cp *ClientPool) Run(ctx context.Context) {
 func (cp *ClientPool) cleanPool() {
 	cp.lock.Lock()
 	defer cp.lock.Unlock()
-	newAddrs := []string{}
+
+	newHostEntries := []*poolEntry{}
 	newNotifTimes := map[string]time.Time{}
 	var removed []string
-	for _, addr := range cp.addrs {
+	for _, hostEntry := range cp.entries {
+		addr := hostEntry.Addr
 		notifTime := cp.notifTimes[addr]
 		if notifTime.Add(cp.maxAgeNoNotif).Before(time.Now()) {
 			removed = append(removed, addr)
 			continue
 		}
-		newAddrs = append(newAddrs, addr)
+		newHostEntries = append(newHostEntries, hostEntry)
 		newNotifTimes[addr] = notifTime
 	}
-	cp.addrs = newAddrs
+
+	cp.entries = newHostEntries
 	cp.notifTimes = newNotifTimes
-	if cp.lastAddrIdx >= len(cp.addrs) {
+	if cp.lastEntryIdx >= len(cp.entries) {
 		// reset when necessary. Next() checks for proper value, but better to be explicit.
-		cp.lastAddrIdx = 0
+		cp.lastEntryIdx = 0
 	}
-	log.Printf("Pool cleanup done, removed %d items. New pool size: %d", len(removed), len(cp.addrs))
+	log.Printf("Pool cleanup done, removed %d items. New pool size: %d", len(removed), len(cp.entries))
 }

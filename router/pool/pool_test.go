@@ -10,8 +10,8 @@ func TestEmptyPool(t *testing.T) {
 
 	pool := &ClientPool{
 		maxAgeNoNotif: time.Hour,
-		lastAddrIdx:   0,
-		addrs:         []string{},
+		lastEntryIdx:  0,
+		entries:       []*poolEntry{},
 		notifTimes:    map[string]time.Time{},
 	}
 
@@ -67,28 +67,30 @@ func TestPoolNext(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 
-			notifTimes := func(entries []string) map[string]time.Time {
+			hostEntries, notifTimes := func(entries []string) ([]*poolEntry, map[string]time.Time) {
+				a := []*poolEntry{}
 				m := map[string]time.Time{}
 				for _, e := range entries {
+					a = append(a, &poolEntry{Addr: e, movingWindow: newMovingWindow(), weight: 100})
 					m[e] = time.Now()
 				}
-				return m
-			}
+				return a, m
+			}(test.addrs)
 
 			pool := &ClientPool{
 				maxAgeNoNotif: time.Hour, // not used in this test anyway
-				lastAddrIdx:   test.startIndex,
-				addrs:         test.addrs,
-				notifTimes:    notifTimes(test.addrs),
+				lastEntryIdx:  test.startIndex,
+				entries:       hostEntries,
+				notifTimes:    notifTimes,
 			}
 
 			var res []string
 			for i := 0; i < 10; i++ {
-				n, err := pool.Next()
+				n, err := pool.next()
 				if err != nil {
 					t.Fatalf("got unexpected error: %v", err)
 				}
-				res = append(res, n)
+				res = append(res, n.Addr)
 			}
 			if !reflect.DeepEqual(res, test.wantNext10Times) {
 				t.Fatalf("list differs: got %v want %v", res, test.wantNext10Times)
@@ -132,53 +134,58 @@ func TestPoolRegisterClient(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			pool := &ClientPool{
 				maxAgeNoNotif: time.Hour,
-				lastAddrIdx:   0,
-				addrs:         []string{},
+				lastEntryIdx:  0,
+				entries:       []*poolEntry{},
 				notifTimes:    map[string]time.Time{},
 			}
 			for _, addr := range test.addrsToRegister {
 				pool.registerClient(addr)
 			}
 
-			if !reflect.DeepEqual(pool.addrs, test.resultingAddrs) {
-				t.Fatalf("difference in addrs: got %v want %v", pool.addrs, test.resultingAddrs)
+			gotAddrs := []string{}
+			for _, e := range pool.entries {
+				gotAddrs = append(gotAddrs, e.Addr)
+			}
+
+			if !reflect.DeepEqual(gotAddrs, test.resultingAddrs) {
+				t.Fatalf("difference in addrs: got %v want %v", gotAddrs, test.resultingAddrs)
 			}
 		})
 	}
 }
 
 func TestCleanPool(t *testing.T) {
-	type hostEntry struct {
+	type testHostEntry struct {
 		addr      string
 		lastNotif time.Time
 	}
 
 	tests := map[string]struct {
-		hosts           []*hostEntry
+		hosts           []*testHostEntry
 		maxAgeNoNotif   time.Duration
 		addrsAfterClean []string
 	}{
 		"no addresses": {
-			hosts:           []*hostEntry{},
+			hosts:           []*testHostEntry{},
 			addrsAfterClean: []string{},
 			maxAgeNoNotif:   time.Second,
 		},
 		"one address, not cleaned": {
-			hosts: []*hostEntry{
+			hosts: []*testHostEntry{
 				{addr: "there.com", lastNotif: time.Now()},
 			},
 			maxAgeNoNotif:   time.Second,
 			addrsAfterClean: []string{"there.com"},
 		},
 		"one address, cleaned": {
-			hosts: []*hostEntry{
+			hosts: []*testHostEntry{
 				{addr: "there.com", lastNotif: time.Now().Add(-time.Hour)}, // hour old
 			},
 			maxAgeNoNotif:   time.Second,
 			addrsAfterClean: []string{},
 		},
 		"multiple addresses, some cleaned": {
-			hosts: []*hostEntry{
+			hosts: []*testHostEntry{
 				{addr: "there.com", lastNotif: time.Now().Add(-time.Hour)}, // hour old
 				{addr: "here.com", lastNotif: time.Now()},
 				{addr: "onthemoon.com", lastNotif: time.Now()},
@@ -193,11 +200,11 @@ func TestCleanPool(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 
-			addrs, notifTimes := func(hosts []*hostEntry) ([]string, map[string]time.Time) {
-				a := []string{}
+			addrs, notifTimes := func(hosts []*testHostEntry) ([]*poolEntry, map[string]time.Time) {
+				a := []*poolEntry{}
 				m := map[string]time.Time{}
 				for _, e := range hosts {
-					a = append(a, e.addr)
+					a = append(a, &poolEntry{Addr: e.addr, movingWindow: newMovingWindow(), weight: 100})
 					m[e.addr] = e.lastNotif
 				}
 				return a, m
@@ -205,33 +212,38 @@ func TestCleanPool(t *testing.T) {
 
 			pool := &ClientPool{
 				maxAgeNoNotif: test.maxAgeNoNotif,
-				addrs:         addrs,
+				entries:       addrs,
 				notifTimes:    notifTimes,
 			}
 
 			pool.cleanPool()
 
-			if !reflect.DeepEqual(pool.addrs, test.addrsAfterClean) {
-				t.Fatalf("difference in addrs: got %v want %v", pool.addrs, test.addrsAfterClean)
+			gotAddrs := []string{}
+			for _, e := range pool.entries {
+				gotAddrs = append(gotAddrs, e.Addr)
+			}
+
+			if !reflect.DeepEqual(gotAddrs, test.addrsAfterClean) {
+				t.Fatalf("difference in addrs: got %v want %v", pool.entries, test.addrsAfterClean)
 			}
 		})
 	}
 }
 
 func TestNextAndCleanInteraction(t *testing.T) {
-	type hostEntry struct {
+	type testHostEntry struct {
 		addr      string
 		lastNotif time.Time
 	}
 
 	tests := map[string]struct {
-		hosts                      []*hostEntry
+		hosts                      []*testHostEntry
 		maxAgeNoNotif              time.Duration
 		wantNext10TimesBeforeClean []string
 		wantNext10TimesAfterClean  []string
 	}{
 		"one address, not cleaned": {
-			hosts: []*hostEntry{
+			hosts: []*testHostEntry{
 				{addr: "there.com", lastNotif: time.Now()},
 			},
 			maxAgeNoNotif:              time.Second,
@@ -239,7 +251,7 @@ func TestNextAndCleanInteraction(t *testing.T) {
 			wantNext10TimesAfterClean:  repeat("there.com", 10),
 		},
 		"multiple addresses, some cleaned": {
-			hosts: []*hostEntry{
+			hosts: []*testHostEntry{
 				{addr: "there.com", lastNotif: time.Now().Add(-time.Hour)}, // hour old
 				{addr: "here.com", lastNotif: time.Now()},
 				{addr: "onthemoon.com", lastNotif: time.Now()},
@@ -254,11 +266,11 @@ func TestNextAndCleanInteraction(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			addrs, notifTimes := func(hosts []*hostEntry) ([]string, map[string]time.Time) {
-				a := []string{}
+			addrs, notifTimes := func(hosts []*testHostEntry) ([]*poolEntry, map[string]time.Time) {
+				a := []*poolEntry{}
 				m := map[string]time.Time{}
 				for _, e := range hosts {
-					a = append(a, e.addr)
+					a = append(a, &poolEntry{Addr: e.addr, movingWindow: newMovingWindow(), weight: 100})
 					m[e.addr] = e.lastNotif
 				}
 				return a, m
@@ -266,17 +278,17 @@ func TestNextAndCleanInteraction(t *testing.T) {
 
 			pool := &ClientPool{
 				maxAgeNoNotif: test.maxAgeNoNotif,
-				addrs:         addrs,
+				entries:       addrs,
 				notifTimes:    notifTimes,
 			}
 
 			var beforeAddrs []string
 			for i := 0; i < 10; i++ {
-				a, err := pool.Next()
+				a, err := pool.next()
 				if err != nil {
 					t.Fatalf("unexpected error while Next: %v", err)
 				}
-				beforeAddrs = append(beforeAddrs, a)
+				beforeAddrs = append(beforeAddrs, a.Addr)
 			}
 			if !reflect.DeepEqual(beforeAddrs, test.wantNext10TimesBeforeClean) {
 				t.Fatalf("difference in addrs: got %+v want %+v", beforeAddrs, test.wantNext10TimesBeforeClean)
@@ -286,11 +298,11 @@ func TestNextAndCleanInteraction(t *testing.T) {
 
 			var afterAddrs []string
 			for i := 0; i < 10; i++ {
-				a, err := pool.Next()
+				a, err := pool.next()
 				if err != nil {
 					t.Fatalf("unexpected error while Next: %v", err)
 				}
-				afterAddrs = append(afterAddrs, a)
+				afterAddrs = append(afterAddrs, a.Addr)
 			}
 
 			if !reflect.DeepEqual(afterAddrs, test.wantNext10TimesAfterClean) {
@@ -332,8 +344,8 @@ func TestDeregisterClient(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			pool := &ClientPool{
 				maxAgeNoNotif: time.Hour,
-				lastAddrIdx:   0,
-				addrs:         []string{},
+				lastEntryIdx:  0,
+				entries:       []*poolEntry{},
 				notifTimes:    map[string]time.Time{},
 			}
 			for _, addr := range test.addrsToRegister {
@@ -344,8 +356,13 @@ func TestDeregisterClient(t *testing.T) {
 				pool.deRegisterClient(addr)
 			}
 
-			if !reflect.DeepEqual(pool.addrs, test.resultingAddrs) {
-				t.Fatalf("difference in addrs: got %v want %v", pool.addrs, test.resultingAddrs)
+			gotAddrs := []string{}
+			for _, e := range pool.entries {
+				gotAddrs = append(gotAddrs, e.Addr)
+			}
+
+			if !reflect.DeepEqual(gotAddrs, test.resultingAddrs) {
+				t.Fatalf("difference in addrs: got %v want %v", pool.entries, test.resultingAddrs)
 			}
 		})
 	}

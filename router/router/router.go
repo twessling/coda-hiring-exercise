@@ -6,8 +6,6 @@ import (
 	"log"
 	"mrbarrel/router/pool"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"time"
 )
 
@@ -52,13 +50,11 @@ func (r *Router) ListenAndServe(ctx context.Context) error {
 }
 
 func (r *Router) handle(w http.ResponseWriter, req *http.Request) {
-	clientAddr, err := r.clients.Next()
+	forwarder, err := r.clients.Next()
 	if err != nil {
 		log.Printf("could not get client: %v", err)
 		w.WriteHeader(http.StatusBadGateway)
 		return
 	}
-	uri, _ := url.Parse(fmt.Sprintf("http://%s", clientAddr)) // TODO: should the 'http://' be here or in the client's registration data?
-	proxy := httputil.NewSingleHostReverseProxy(uri)
-	proxy.ServeHTTP(w, req)
+	forwarder.Forward(w, req)
 }
