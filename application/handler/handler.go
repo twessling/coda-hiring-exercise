@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -58,8 +59,8 @@ func (h *Handler) handlePostJson(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	err = validateJson(bytes)
-	if err != nil {
+
+	if !json.Valid(bytes) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
