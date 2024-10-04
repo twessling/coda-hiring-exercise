@@ -14,6 +14,7 @@ import (
 func main() {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
+	// configuration phase
 	poolConfig := &pool.PoolConfig{
 		MaxAgeNoNotif: env.MustGetDurationOrDefault("MAX_CLIENT_NO_NOTIF", time.Second*2),
 	}
@@ -24,10 +25,12 @@ func main() {
 		Addr: env.MustGetStringOrDefault("HTTP_ADDR", ":8081"),
 	}
 
+	// wiring phase
 	clientPool := pool.NewPool(poolConfig)
 	poolHandler := pool.NewHandler(poolHandlerConfig, clientPool)
 	router := router.New(routerConfig, clientPool)
 
+	// run phase
 	var wg sync.WaitGroup
 	wg.Add(4)
 

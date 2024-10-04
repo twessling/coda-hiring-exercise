@@ -23,6 +23,7 @@ func NewHandler(cfg *HandlerConfig, cp *ClientPool) *PoolHandler {
 	ph := &PoolHandler{
 		registerListenAddr: cfg.ListenAddr,
 		mux:                http.NewServeMux(),
+		clientPool:         cp,
 	}
 
 	ph.mux.HandleFunc(fmt.Sprintf("%s /", http.MethodPost), ph.registerClient)

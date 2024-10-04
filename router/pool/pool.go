@@ -23,14 +23,12 @@ type ClientPool struct {
 }
 
 func NewPool(cfg *PoolConfig) *ClientPool {
-	cp := &ClientPool{
+	return &ClientPool{
 		maxAgeNoNotif: cfg.MaxAgeNoNotif,
 		lastAddrIdx:   0,
 		addrs:         []string{},
 		notifTimes:    map[string]time.Time{},
 	}
-
-	return cp
 }
 
 func (cp *ClientPool) Next() (string, error) {
@@ -54,7 +52,7 @@ func (cp *ClientPool) registerClient(addr string) {
 	cp.lock.Lock()
 	defer cp.lock.Unlock()
 	if _, ok := cp.notifTimes[addr]; ok {
-		// we already have this addr, update the time
+		// we already have this addr, only update the last notif time
 		cp.notifTimes[addr] = time.Now()
 		return
 	}
@@ -62,7 +60,7 @@ func (cp *ClientPool) registerClient(addr string) {
 	// this is a new client
 	cp.addrs = append(cp.addrs, addr)
 	cp.notifTimes[addr] = time.Now()
-	log.Printf("INFO: added client %s", addr)
+	log.Printf("INFO: added client %s for a total of %d", addr, len(cp.addrs))
 }
 
 func (cp *ClientPool) Run(ctx context.Context) {
@@ -94,9 +92,11 @@ func (cp *ClientPool) cleanPool() {
 	defer cp.lock.Unlock()
 	var newAddrs []string
 	newNotifTimes := map[string]time.Time{}
-	for addr, notifTime := range cp.notifTimes {
+	var removed []string
+	for _, addr := range cp.addrs {
+		notifTime := cp.notifTimes[addr]
 		if notifTime.Add(cp.maxAgeNoNotif).Before(time.Now()) {
-			log.Printf("INFO: removing client %s", addr)
+			removed = append(removed, addr)
 			continue
 		}
 		newAddrs = append(newAddrs, addr)
@@ -104,5 +104,9 @@ func (cp *ClientPool) cleanPool() {
 	}
 	cp.addrs = newAddrs
 	cp.notifTimes = newNotifTimes
-	cp.lastAddrIdx = 0
+	if cp.lastAddrIdx >= len(cp.addrs) {
+		// reset when necessary. Next() checks for proper value, but better to be explicit.
+		cp.lastAddrIdx = 0
+	}
+	log.Printf("Pool cleanup done, removed %d items. New pool size: %d", len(removed), len(cp.addrs))
 }
