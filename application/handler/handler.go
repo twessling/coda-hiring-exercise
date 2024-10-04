@@ -40,10 +40,11 @@ func (h *Handler) ListenAndServe(ctx context.Context) error {
 	// listen for context to stop server gracefully
 	go func() {
 		<-ctx.Done()
+		log.Printf("Gracefully shutting down handler..")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
-			log.Fatalf("Server Shutdown Failed: %v", err)
+			log.Fatalf("Handler shutdown failed: %v", err)
 		}
 	}()
 

@@ -14,19 +14,22 @@ import (
 func main() {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
-	poolConfig := &pool.Config{
-		ListenAddr:    env.MustGetStringOrDefault("ROUTER_ADDR", ":8081"),
+	poolConfig := &pool.PoolConfig{
 		MaxAgeNoNotif: env.MustGetDurationOrDefault("MAX_CLIENT_NO_NOTIF", time.Second*2),
+	}
+	poolHandlerConfig := &pool.HandlerConfig{
+		ListenAddr: env.MustGetStringOrDefault("ROUTER_ADDR", ":8081"),
 	}
 	routerConfig := &router.Config{
 		Addr: env.MustGetStringOrDefault("HTTP_ADDR", ":8081"),
 	}
 
-	clientPool := pool.New(poolConfig)
+	clientPool := pool.NewPool(poolConfig)
+	poolHandler := pool.NewHandler(poolHandlerConfig, clientPool)
 	router := router.New(routerConfig, clientPool)
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(4)
 
 	go func() {
 		defer wg.Done()
@@ -35,7 +38,12 @@ func main() {
 
 	go func() {
 		defer wg.Done()
-		err := clientPool.ListenForClients(ctx)
+		clientPool.Run(ctx)
+	}()
+
+	go func() {
+		defer wg.Done()
+		err := poolHandler.ListenForClients(ctx)
 		if err != nil {
 			log.Printf("ERROR in clientPool: %v", err)
 		}

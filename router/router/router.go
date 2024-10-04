@@ -40,11 +40,11 @@ func (r *Router) ListenAndServe(ctx context.Context) error {
 	// listen for context to stop server gracefully
 	go func() {
 		<-ctx.Done()
-		log.Printf("Gracefully sutting down router...")
+		log.Printf("INFO: Gracefully sutting down router...")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
-			log.Fatalf("Server Shutdown Failed: %v", err)
+			log.Fatalf("Router shutdown failed: %v", err)
 		}
 	}()
 

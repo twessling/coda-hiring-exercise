@@ -68,3 +68,4 @@ not done (yet):
 - handle slowness of api calls, probably need a ratelimiter per host.
 - proper logging framework (the default is a bit too basic imo)
 - integration tests (I will skip this for now, would require yet another component) but should be easy locally if you can run multiple Api's already - I have already added a particular header 'X-Handled-By' to identify to outside which instance handled the traffic. You can then fire a bunch of results and check that that response header changes.
+  or you can use: $ for i in `seq 1 30`; do curl -v -XPOST http://localhost:8080/json --data-binary "{\"foo\":123}" 2>&1 | grep Handled ; done

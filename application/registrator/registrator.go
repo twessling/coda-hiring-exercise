@@ -33,7 +33,7 @@ func (r *Registrator) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Print("INFO: shutting down registrator..")
+			log.Print("INFO: Gracefully shutting down registrator..")
 			return nil
 		case <-t.C:
 			body := strings.NewReader(r.myAddr)
