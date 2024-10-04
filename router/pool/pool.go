@@ -90,7 +90,7 @@ func (cp *ClientPool) Run(ctx context.Context) {
 func (cp *ClientPool) cleanPool() {
 	cp.lock.Lock()
 	defer cp.lock.Unlock()
-	var newAddrs []string
+	newAddrs := []string{}
 	newNotifTimes := map[string]time.Time{}
 	var removed []string
 	for _, addr := range cp.addrs {

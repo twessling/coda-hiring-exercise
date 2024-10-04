@@ -53,6 +53,8 @@ func (ph *PoolHandler) registerClient(w http.ResponseWriter, req *http.Request) 
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	// TODO: internal call, but what about validation? Just host/port valdiation? Full URI validation?
+
 	addr := string(bytes)
 	ph.clientPool.registerClient(addr)
 }

@@ -68,6 +68,7 @@ not done (yet):
 - handle slowness of api calls, probably need a ratelimiter per host. -> introduce a struct for a client, with rate limiter code on it. During round-robin selection, can ask whether this client can accept a call again. If not, skip and go to next.
 - proper logging framework (the default is a bit too basic imo)
 - proper testing frameworks like testify (get nicer code & error messages and utility functions)
+- unit tests to validate parallel access to routing pool works properly
 - integration tests. I made a very basic & pragmatic approach by adding a random ID to the Api handlers, and a particular header 'X-Handled-By' to identify to outside which instance handled the traffic. You can then fire a bunch of results and check that that response header changes:
     $ for i in `seq 1 30`; do curl -v -XPOST http://localhost:8080/json --data-binary "{\"foo\":123}" 2>&1 | grep Handled ; done
     $ watch -d -n0.5 'date; curl --include -XPOST http://localhost:8080/json --data-binary "{\"foo\":123}" 2>&1'
