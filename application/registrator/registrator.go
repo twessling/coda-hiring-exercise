@@ -30,6 +30,7 @@ func New(cfg *Config) *Registrator {
 
 func (r *Registrator) Run(ctx context.Context) error {
 	t := time.NewTicker(r.interval)
+	defer r.deregister()
 	for {
 		select {
 		case <-ctx.Done():
@@ -54,5 +55,15 @@ func (r *Registrator) Run(ctx context.Context) error {
 			}
 		}
 	}
-	// TODO: add a defer to explicitly de-register itself
+}
+
+func (r *Registrator) deregister() {
+	body := strings.NewReader(r.myAddr)
+	req, err := http.NewRequest(http.MethodDelete, r.registryAddr, body)
+	if err != nil {
+		// we're shutting down anyway, best effort here
+		return
+	}
+	_, _ = http.DefaultClient.Do(req)
+	// we're shutting down anyway, best effort here.. not much to do with error or response code at this point.
 }

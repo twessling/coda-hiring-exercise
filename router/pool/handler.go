@@ -27,6 +27,7 @@ func NewHandler(cfg *HandlerConfig, cp *ClientPool) *PoolHandler {
 	}
 
 	ph.mux.HandleFunc(fmt.Sprintf("%s /", http.MethodPost), ph.registerClient)
+	ph.mux.HandleFunc(fmt.Sprintf("%s /", http.MethodDelete), ph.deRegisterClient)
 	return ph
 }
 
@@ -57,4 +58,16 @@ func (ph *PoolHandler) registerClient(w http.ResponseWriter, req *http.Request) 
 
 	addr := string(bytes)
 	ph.clientPool.registerClient(addr)
+}
+
+func (ph *PoolHandler) deRegisterClient(w http.ResponseWriter, req *http.Request) {
+	bytes, err := io.ReadAll(req.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	// TODO: internal call, but what about validation? Just host/port valdiation? Full URI validation?
+
+	addr := string(bytes)
+	ph.clientPool.deRegisterClient(addr)
 }

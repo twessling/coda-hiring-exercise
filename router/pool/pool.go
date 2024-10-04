@@ -63,6 +63,28 @@ func (cp *ClientPool) registerClient(addr string) {
 	log.Printf("INFO: added client %s for a total of %d", addr, len(cp.addrs))
 }
 
+func (cp *ClientPool) deRegisterClient(addr string) {
+	cp.lock.Lock()
+	defer cp.lock.Unlock()
+
+	delete(cp.notifTimes, addr)
+	for i := 0; i < len(cp.addrs); i++ {
+		if cp.addrs[i] == addr {
+			if i == len(cp.addrs)-1 {
+				cp.addrs = cp.addrs[:i] // If it's the last element, return up to the last
+			} else {
+				cp.addrs = append(cp.addrs[:i], cp.addrs[i+1:]...)
+			}
+			break
+		}
+	}
+	if cp.lastAddrIdx >= len(cp.addrs) {
+		// reset when necessary. Next() checks for proper value, but better to be explicit.
+		cp.lastAddrIdx = 0
+	}
+	log.Printf("INFO: deregistered client %s for a total of %d", addr, len(cp.addrs))
+}
+
 func (cp *ClientPool) Run(ctx context.Context) {
 	t := time.NewTicker(time.Second)
 	var needsClean bool

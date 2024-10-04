@@ -299,3 +299,54 @@ func TestNextAndCleanInteraction(t *testing.T) {
 		})
 	}
 }
+
+func TestDeregisterClient(t *testing.T) {
+	tests := map[string]struct {
+		addrsToRegister   []string
+		addrsToDeregister []string
+		resultingAddrs    []string
+	}{
+		"no addresses": {
+			addrsToRegister:   []string{},
+			addrsToDeregister: []string{},
+			resultingAddrs:    []string{},
+		},
+		"one address": {
+			addrsToRegister:   []string{"somewhere.org"},
+			addrsToDeregister: []string{"somewhere.org"},
+			resultingAddrs:    []string{},
+		},
+		"several addresses": {
+			addrsToRegister:   []string{"somewhere.org", "there.com", "thisplace.gov"},
+			addrsToDeregister: []string{"there.com"},
+			resultingAddrs:    []string{"somewhere.org", "thisplace.gov"},
+		},
+		"unknown address to deregister": {
+			addrsToRegister:   []string{"somewhere.org", "thisplace.gov"},
+			addrsToDeregister: []string{"there.com"},
+			resultingAddrs:    []string{"somewhere.org", "thisplace.gov"},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			pool := &ClientPool{
+				maxAgeNoNotif: time.Hour,
+				lastAddrIdx:   0,
+				addrs:         []string{},
+				notifTimes:    map[string]time.Time{},
+			}
+			for _, addr := range test.addrsToRegister {
+				pool.registerClient(addr)
+			}
+
+			for _, addr := range test.addrsToDeregister {
+				pool.deRegisterClient(addr)
+			}
+
+			if !reflect.DeepEqual(pool.addrs, test.resultingAddrs) {
+				t.Fatalf("difference in addrs: got %v want %v", pool.addrs, test.resultingAddrs)
+			}
+		})
+	}
+}
