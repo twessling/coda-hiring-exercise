@@ -11,16 +11,16 @@ import (
 
 type Config struct {
 	Addr       string
-	clientPool *pool.ClientPool
+	clientPool *pool.ForwarderPool
 }
 
 type Router struct {
 	addr    string
-	clients *pool.ClientPool
+	clients *pool.ForwarderPool
 	mux     *http.ServeMux
 }
 
-func New(cfg *Config, clientPool *pool.ClientPool) *Router {
+func New(cfg *Config, clientPool *pool.ForwarderPool) *Router {
 	r := &Router{
 		addr:    cfg.Addr,
 		clients: clientPool,

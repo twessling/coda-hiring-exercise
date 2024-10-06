@@ -14,28 +14,24 @@ type PoolConfig struct {
 	MaxAgeNoNotif time.Duration
 }
 
-type ClientPool struct {
+type ForwarderPool struct {
 	lock          sync.Mutex
 	maxAgeNoNotif time.Duration
 	lastEntryIdx  int
-	entries       []*poolEntry
+	entries       []Forwarder
 	notifTimes    map[string]time.Time
 }
 
-func NewPool(cfg *PoolConfig) *ClientPool {
-	return &ClientPool{
+func NewPool(cfg *PoolConfig) *ForwarderPool {
+	return &ForwarderPool{
 		maxAgeNoNotif: cfg.MaxAgeNoNotif,
 		lastEntryIdx:  0,
-		entries:       []*poolEntry{},
+		entries:       []Forwarder{},
 		notifTimes:    map[string]time.Time{},
 	}
 }
 
-func (cp *ClientPool) Next() (Forwarder, error) {
-	return cp.next()
-}
-
-func (cp *ClientPool) next() (*poolEntry, error) {
+func (cp *ForwarderPool) Next() (Forwarder, error) {
 	cp.lock.Lock()
 	defer cp.lock.Unlock()
 
@@ -52,7 +48,7 @@ func (cp *ClientPool) next() (*poolEntry, error) {
 	return hostEntry, nil
 }
 
-func (cp *ClientPool) registerClient(addr string) {
+func (cp *ForwarderPool) registerClient(addr string) {
 	cp.lock.Lock()
 	defer cp.lock.Unlock()
 	if _, ok := cp.notifTimes[addr]; ok {
@@ -62,18 +58,18 @@ func (cp *ClientPool) registerClient(addr string) {
 	}
 
 	// this is a new client
-	cp.entries = append(cp.entries, &poolEntry{Addr: addr, weight: 100, movingWindow: newMovingWindow()})
+	cp.entries = append(cp.entries, newForwardHandler(addr))
 	cp.notifTimes[addr] = time.Now()
 	log.Printf("INFO: added client %s for a total of %d", addr, len(cp.entries))
 }
 
-func (cp *ClientPool) deRegisterClient(addr string) {
+func (cp *ForwarderPool) deRegisterClient(addr string) {
 	cp.lock.Lock()
 	defer cp.lock.Unlock()
 
 	delete(cp.notifTimes, addr)
 	for i := 0; i < len(cp.entries); i++ {
-		if cp.entries[i].Addr == addr {
+		if cp.entries[i].Host() == addr {
 			if i == len(cp.entries)-1 {
 				cp.entries = cp.entries[:i] // If it's the last element, return up to the last
 			} else {
@@ -89,7 +85,7 @@ func (cp *ClientPool) deRegisterClient(addr string) {
 	log.Printf("INFO: deregistered client %s for a total of %d", addr, len(cp.entries))
 }
 
-func (cp *ClientPool) Run(ctx context.Context) {
+func (cp *ForwarderPool) Run(ctx context.Context) {
 	t := time.NewTicker(time.Second)
 	var needsClean bool
 
@@ -113,15 +109,15 @@ func (cp *ClientPool) Run(ctx context.Context) {
 	}
 }
 
-func (cp *ClientPool) cleanPool() {
+func (cp *ForwarderPool) cleanPool() {
 	cp.lock.Lock()
 	defer cp.lock.Unlock()
 
-	newHostEntries := []*poolEntry{}
+	newHostEntries := []Forwarder{}
 	newNotifTimes := map[string]time.Time{}
 	var removed []string
 	for _, hostEntry := range cp.entries {
-		addr := hostEntry.Addr
+		addr := hostEntry.Host()
 		notifTime := cp.notifTimes[addr]
 		if notifTime.Add(cp.maxAgeNoNotif).Before(time.Now()) {
 			removed = append(removed, addr)

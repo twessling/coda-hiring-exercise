@@ -6,6 +6,8 @@ import (
 )
 
 const windowSize = 100
+const slow bool = true
+const fast bool = false
 
 var slowAvgThreshold = time.Millisecond * 500
 
@@ -37,19 +39,19 @@ func (w *movingWindow) trackNewDuration(newDuration time.Duration) {
 		return
 	}
 
-	if oldValue {
+	if oldValue == slow {
 		w.slowCount--
 	} else {
 		w.fastCount--
 	}
 
-	if newValue {
+	if newValue == slow {
 		w.slowCount++
 	} else {
 		w.fastCount++
 	}
 }
 
-func (w *movingWindow) getSlowRate() float64 {
+func (w *movingWindow) getScore() float64 {
 	return float64(w.slowCount) / float64(w.slowCount+w.fastCount)
 }

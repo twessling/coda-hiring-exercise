@@ -16,10 +16,10 @@ type HandlerConfig struct {
 type PoolHandler struct {
 	registerListenAddr string
 	mux                *http.ServeMux
-	clientPool         *ClientPool
+	clientPool         *ForwarderPool
 }
 
-func NewHandler(cfg *HandlerConfig, cp *ClientPool) *PoolHandler {
+func NewHandler(cfg *HandlerConfig, cp *ForwarderPool) *PoolHandler {
 	ph := &PoolHandler{
 		registerListenAddr: cfg.ListenAddr,
 		mux:                http.NewServeMux(),
