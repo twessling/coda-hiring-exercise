@@ -72,7 +72,7 @@ func (w *RateLimiter) updateStage() {
 	for _, s := range all_stages {
 		if s.contains(newScore) {
 			w.currentStage = s
-			w.currentWaitTime = s.calculateNewWaitTime(oldStage, newScore, w.scoreLastN(10))
+			w.currentWaitTime = s.calculateNewWaitTime(oldStage, w.currentWaitTime, newScore, w.scoreLastN(10))
 		}
 	}
 }
