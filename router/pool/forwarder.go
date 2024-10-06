@@ -2,6 +2,7 @@ package pool
 
 import (
 	"fmt"
+	"mrbarrel/router/pool/ratelimit"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -16,7 +17,7 @@ type Forwarder interface {
 type forwardHandler struct {
 	addr        string
 	proxy       *httputil.ReverseProxy
-	rateLimiter *rateLimiter
+	rateLimiter *ratelimit.RateLimiter
 	weight      float64
 }
 
@@ -26,7 +27,7 @@ func newForwardHandler(addr string) Forwarder {
 	return &forwardHandler{
 		addr:        addr,
 		proxy:       proxy,
-		rateLimiter: newRateLimiter(),
+		rateLimiter: ratelimit.NewRateLimiter(),
 		weight:      1,
 	}
 }
@@ -36,7 +37,7 @@ func (h *forwardHandler) Forward(w http.ResponseWriter, req *http.Request) {
 	h.proxy.ServeHTTP(w, req)
 	duration := time.Since(start)
 
-	h.rateLimiter.trackNewDuration(duration)
+	h.rateLimiter.TrackNewDuration(duration)
 }
 
 func (h *forwardHandler) Host() string {
@@ -44,5 +45,5 @@ func (h *forwardHandler) Host() string {
 }
 
 func (h *forwardHandler) CanForward() bool {
-	return h.rateLimiter.canHandleCall()
+	return h.rateLimiter.CanHandleCall()
 }

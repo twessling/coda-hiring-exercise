@@ -1,4 +1,4 @@
-package pool
+package ratelimit
 
 import (
 	"mrbarrel/lib/interval"

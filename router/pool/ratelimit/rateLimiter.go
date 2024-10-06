@@ -1,4 +1,4 @@
-package pool
+package ratelimit
 
 import (
 	"sync"
@@ -16,9 +16,9 @@ const (
 
 var slowAvgThreshold = time.Millisecond * 200
 
-// rateLimiter uses a circular buffer to keep track of the last N fast or slow counts.
+// RateLimiter uses a circular buffer to keep track of the last N fast or slow counts.
 // these will be used to re-calculate the percentage of slow counts (Score).
-type rateLimiter struct {
+type RateLimiter struct {
 	window          []speed
 	position        int
 	fastCount       int
@@ -29,15 +29,15 @@ type rateLimiter struct {
 	currentWaitTime time.Duration
 }
 
-func newRateLimiter() *rateLimiter {
-	return &rateLimiter{
+func NewRateLimiter() *RateLimiter {
+	return &RateLimiter{
 		window:       make([]speed, windowSize),
 		currentStage: stage_ok,
 	}
 }
 
 // add newDuration to the mix, recalculate & return the current weight (1-100) based on the new values.
-func (w *rateLimiter) trackNewDuration(newDuration time.Duration) {
+func (w *RateLimiter) TrackNewDuration(newDuration time.Duration) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	newValue := fast
@@ -66,7 +66,7 @@ func (w *rateLimiter) trackNewDuration(newDuration time.Duration) {
 	w.updateStage()
 }
 
-func (w *rateLimiter) updateStage() {
+func (w *RateLimiter) updateStage() {
 	newScore := w.score()
 	oldStage := w.currentStage
 	for _, s := range all_stages {
@@ -77,7 +77,7 @@ func (w *rateLimiter) updateStage() {
 	}
 }
 
-func (w *rateLimiter) score() float64 {
+func (w *RateLimiter) score() float64 {
 	if w.slowCount+w.fastCount == 0 {
 		return 1
 	}
@@ -85,7 +85,7 @@ func (w *rateLimiter) score() float64 {
 	return float64(w.fastCount) / float64(w.slowCount+w.fastCount)
 }
 
-func (w *rateLimiter) scoreLastN(n int) float64 {
+func (w *RateLimiter) scoreLastN(n int) float64 {
 	if n > w.slowCount+w.fastCount {
 		n = w.slowCount + w.fastCount
 	}
@@ -116,6 +116,6 @@ func (w *rateLimiter) scoreLastN(n int) float64 {
 	return float64(fastCount) / float64(slowCount+fastCount)
 }
 
-func (w *rateLimiter) canHandleCall() bool {
+func (w *RateLimiter) CanHandleCall() bool {
 	return time.Now().After(w.lastHandleTime.Add(w.currentWaitTime))
 }
