@@ -13,12 +13,18 @@ type stage struct {
 	interval        *interval.Interval
 	defaultWaittime time.Duration
 }
+
+// represents real bad, as good as dead performance.
 type deadStage struct {
 	stage
 }
+
+// represents good performance
 type okStage struct {
 	stage
 }
+
+// represents a large range of mediocre performance
 type slowStage struct {
 	stage
 }
@@ -88,7 +94,7 @@ func (s *slowStage) calculateSlowStage(oldWaitTime time.Duration, newScore, newS
 		return oldWaitTime * 2
 	}
 
-	// linear
-	factor := newScore / (ok_threshold - dead_threshold)
+	// linear =100 + 1000 * ((1-x)*(0.99-0.1))
+	factor := (1 - newScore) / (ok_threshold - dead_threshold)
 	return 100*time.Millisecond + time.Second*time.Duration(factor)
 }
