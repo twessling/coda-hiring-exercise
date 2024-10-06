@@ -12,9 +12,10 @@ Notes from @twessling:
 - not using any outside frameworks/packages, all std library
 - unit tests for both Api and Router (the testable & useful bits that is)
 - yes of course I used google :P
+[WIP] handle slowness of api calls, probably need a ratelimiter per registered host. -> introduce a struct for a client, with rate limiter code on it. During round-robin selection, can ask whether this client can accept a call again. If not, skip and go to next. In a real scenario I'd pick up an existing rate limiting / circuit breaking package for it, but in this case I was intrigued & I had the time - so I tried to build smth basic myself :)
 
 not done to keep scope somewhat reasonable (but I would want to add):
-- handle slowness of api calls, probably need a ratelimiter per registered host. -> introduce a struct for a client, with rate limiter code on it. During round-robin selection, can ask whether this client can accept a call again. If not, skip and go to next.
+
 - proper logging framework (the default is a bit too basic imo) - I wanted to stick with the standard library only to make things easier for non-go devs
 - proper testing frameworks like testify (get nicer code & error messages and utility functions) - I wanted to stick with the standard library only to make things easier for non-go devs
 - unit tests to validate parallel access to routing pool works properly

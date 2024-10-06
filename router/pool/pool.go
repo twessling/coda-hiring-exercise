@@ -8,7 +8,8 @@ import (
 	"time"
 )
 
-var errNoClients = errors.New("no available hosts to proxy request to")
+var errEmptyClients = errors.New("empty hosts list to proxy request to")
+var errNoClientsAvailable = errors.New("no available host to proxy request to")
 
 type ForwarderProvider interface {
 	Next() (Forwarder, error)
@@ -47,15 +48,40 @@ func (cp *ForwarderPool) Next() (Forwarder, error) {
 	defer cp.lock.Unlock()
 
 	if len(cp.entries) == 0 {
-		return nil, errNoClients
+		return nil, errEmptyClients
 	}
 
 	if cp.lastEntryIdx >= len(cp.entries) {
 		cp.lastEntryIdx = 0
 	}
 
-	hostEntry := cp.entries[cp.lastEntryIdx]
-	cp.lastEntryIdx++
+	idx := cp.lastEntryIdx
+
+	var hostEntry Forwarder
+	found := false
+	// check whether this Forwarder can actually handle the call; if not, try the next one.
+	// If you went through the complete list and haven't found anything, return error.
+	for {
+		hostEntry = cp.entries[idx]
+		idx++
+		if hostEntry.CanForward() {
+			found = true
+			break
+		}
+
+		if idx >= len(cp.entries) {
+			idx = 0
+		}
+
+		if idx == cp.lastEntryIdx {
+			break
+		}
+	}
+	if !found {
+		return nil, errNoClientsAvailable
+	}
+
+	cp.lastEntryIdx = idx
 	return hostEntry, nil
 }
 
