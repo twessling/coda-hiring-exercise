@@ -10,18 +10,18 @@ import (
 	"time"
 )
 
-type HandlerConfig struct {
+type RegistryHandlerConfig struct {
 	ListenAddr string
 }
 
-type PoolHandler struct {
+type RegistryHandler struct {
 	registerListenAddr string
 	mux                *http.ServeMux
 	clientRegistrar    pool.ClientRegistrar
 }
 
-func NewHandler(cfg *HandlerConfig, cp pool.ClientRegistrar) *PoolHandler {
-	ph := &PoolHandler{
+func NewRegistryHandler(cfg *RegistryHandlerConfig, cp pool.ClientRegistrar) *RegistryHandler {
+	ph := &RegistryHandler{
 		registerListenAddr: cfg.ListenAddr,
 		mux:                http.NewServeMux(),
 		clientRegistrar:    cp,
@@ -32,7 +32,7 @@ func NewHandler(cfg *HandlerConfig, cp pool.ClientRegistrar) *PoolHandler {
 	return ph
 }
 
-func (ph *PoolHandler) ListenForClients(ctx context.Context) error {
+func (ph *RegistryHandler) ListenForClients(ctx context.Context) error {
 	server := &http.Server{Addr: ph.registerListenAddr, Handler: ph.mux}
 
 	// listen for context to stop server gracefully
@@ -49,7 +49,7 @@ func (ph *PoolHandler) ListenForClients(ctx context.Context) error {
 	return server.ListenAndServe()
 }
 
-func (ph *PoolHandler) registerClient(w http.ResponseWriter, req *http.Request) {
+func (ph *RegistryHandler) registerClient(w http.ResponseWriter, req *http.Request) {
 	bytes, err := io.ReadAll(req.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -61,7 +61,7 @@ func (ph *PoolHandler) registerClient(w http.ResponseWriter, req *http.Request) 
 	ph.clientRegistrar.RegisterClient(addr)
 }
 
-func (ph *PoolHandler) deRegisterClient(w http.ResponseWriter, req *http.Request) {
+func (ph *RegistryHandler) deRegisterClient(w http.ResponseWriter, req *http.Request) {
 	bytes, err := io.ReadAll(req.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
