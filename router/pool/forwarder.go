@@ -18,7 +18,6 @@ type forwardHandler struct {
 	addr        string
 	proxy       *httputil.ReverseProxy
 	rateLimiter *ratelimit.RateLimiter
-	weight      float64
 }
 
 func newForwardHandler(addr string) Forwarder {
@@ -28,7 +27,6 @@ func newForwardHandler(addr string) Forwarder {
 		addr:        addr,
 		proxy:       proxy,
 		rateLimiter: ratelimit.NewRateLimiter(),
-		weight:      1,
 	}
 }
 
