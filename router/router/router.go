@@ -9,18 +9,17 @@ import (
 	"time"
 )
 
-type Config struct {
-	Addr       string
-	clientPool *pool.ForwarderPool
+type RouterConfig struct {
+	Addr string
 }
 
 type Router struct {
 	addr    string
-	clients *pool.ForwarderPool
+	clients pool.ForwarderProvider
 	mux     *http.ServeMux
 }
 
-func New(cfg *Config, clientPool *pool.ForwarderPool) *Router {
+func NewRouter(cfg *RouterConfig, clientPool pool.ForwarderProvider) *Router {
 	r := &Router{
 		addr:    cfg.Addr,
 		clients: clientPool,

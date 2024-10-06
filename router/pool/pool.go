@@ -10,6 +10,16 @@ import (
 
 var errNoClients = errors.New("no available hosts to proxy request to")
 
+type ForwarderProvider interface {
+	Next() (Forwarder, error)
+	Run(ctx context.Context)
+}
+
+type ClientRegistrar interface {
+	RegisterClient(addr string)
+	DeRegisterClient(addr string)
+}
+
 type PoolConfig struct {
 	MaxAgeNoNotif time.Duration
 }
@@ -22,13 +32,14 @@ type ForwarderPool struct {
 	notifTimes    map[string]time.Time
 }
 
-func NewPool(cfg *PoolConfig) *ForwarderPool {
-	return &ForwarderPool{
+func NewPool(cfg *PoolConfig) (ForwarderProvider, ClientRegistrar) {
+	p := &ForwarderPool{
 		maxAgeNoNotif: cfg.MaxAgeNoNotif,
 		lastEntryIdx:  0,
 		entries:       []Forwarder{},
 		notifTimes:    map[string]time.Time{},
 	}
+	return p, p
 }
 
 func (cp *ForwarderPool) Next() (Forwarder, error) {
@@ -48,7 +59,7 @@ func (cp *ForwarderPool) Next() (Forwarder, error) {
 	return hostEntry, nil
 }
 
-func (cp *ForwarderPool) registerClient(addr string) {
+func (cp *ForwarderPool) RegisterClient(addr string) {
 	cp.lock.Lock()
 	defer cp.lock.Unlock()
 	if _, ok := cp.notifTimes[addr]; ok {
@@ -63,7 +74,7 @@ func (cp *ForwarderPool) registerClient(addr string) {
 	log.Printf("INFO: added client %s for a total of %d", addr, len(cp.entries))
 }
 
-func (cp *ForwarderPool) deRegisterClient(addr string) {
+func (cp *ForwarderPool) DeRegisterClient(addr string) {
 	cp.lock.Lock()
 	defer cp.lock.Unlock()
 

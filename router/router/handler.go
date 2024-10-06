@@ -1,10 +1,11 @@
-package pool
+package router
 
 import (
 	"context"
 	"fmt"
 	"io"
 	"log"
+	"mrbarrel/router/pool"
 	"net/http"
 	"time"
 )
@@ -16,14 +17,14 @@ type HandlerConfig struct {
 type PoolHandler struct {
 	registerListenAddr string
 	mux                *http.ServeMux
-	clientPool         *ForwarderPool
+	clientRegistrar    pool.ClientRegistrar
 }
 
-func NewHandler(cfg *HandlerConfig, cp *ForwarderPool) *PoolHandler {
+func NewHandler(cfg *HandlerConfig, cp pool.ClientRegistrar) *PoolHandler {
 	ph := &PoolHandler{
 		registerListenAddr: cfg.ListenAddr,
 		mux:                http.NewServeMux(),
-		clientPool:         cp,
+		clientRegistrar:    cp,
 	}
 
 	ph.mux.HandleFunc(fmt.Sprintf("%s /", http.MethodPost), ph.registerClient)
@@ -57,7 +58,7 @@ func (ph *PoolHandler) registerClient(w http.ResponseWriter, req *http.Request) 
 	// TODO: internal call, but what about validation? Just host/port valdiation? Full URI validation?
 
 	addr := string(bytes)
-	ph.clientPool.registerClient(addr)
+	ph.clientRegistrar.RegisterClient(addr)
 }
 
 func (ph *PoolHandler) deRegisterClient(w http.ResponseWriter, req *http.Request) {
@@ -69,5 +70,5 @@ func (ph *PoolHandler) deRegisterClient(w http.ResponseWriter, req *http.Request
 	// TODO: internal call, but what about validation? Just host/port valdiation? Full URI validation?
 
 	addr := string(bytes)
-	ph.clientPool.deRegisterClient(addr)
+	ph.clientRegistrar.DeRegisterClient(addr)
 }

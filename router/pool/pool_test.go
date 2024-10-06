@@ -139,7 +139,7 @@ func TestPoolRegisterClient(t *testing.T) {
 				notifTimes:    map[string]time.Time{},
 			}
 			for _, addr := range test.addrsToRegister {
-				pool.registerClient(addr)
+				pool.RegisterClient(addr)
 			}
 
 			gotAddrs := []string{}
@@ -349,11 +349,11 @@ func TestDeregisterClient(t *testing.T) {
 				notifTimes:    map[string]time.Time{},
 			}
 			for _, addr := range test.addrsToRegister {
-				pool.registerClient(addr)
+				pool.RegisterClient(addr)
 			}
 
 			for _, addr := range test.addrsToDeregister {
-				pool.deRegisterClient(addr)
+				pool.DeRegisterClient(addr)
 			}
 
 			gotAddrs := []string{}
