@@ -94,7 +94,7 @@ func (s *slowStage) calculateSlowStage(oldWaitTime time.Duration, newScore, newS
 		return oldWaitTime * 2
 	}
 
-	// linear =100 + 1000 * ((1-x)*(0.99-0.1))
+	// linear = 100 + 1000 * ((1-x)*(0.99-0.1))
 	factor := (1 - newScore) / (ok_threshold - dead_threshold)
 	return 100*time.Millisecond + time.Second*time.Duration(factor)
 }
