@@ -41,6 +41,7 @@ func NewPool(cfg *PoolConfig) (ForwarderProvider, ClientRegistrar) {
 		lastEntryIdx:  0,
 		entries:       []Forwarder{},
 		notifTimes:    map[string]time.Time{},
+		slowThreshold: cfg.SlowThreshold,
 	}
 	return p, p
 }
