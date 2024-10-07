@@ -23,6 +23,7 @@ type ClientRegistrar interface {
 
 type PoolConfig struct {
 	MaxAgeNoNotif time.Duration
+	SlowThreshold time.Duration
 }
 
 type ForwarderPool struct {
@@ -31,6 +32,7 @@ type ForwarderPool struct {
 	lastEntryIdx  int
 	entries       []Forwarder
 	notifTimes    map[string]time.Time
+	slowThreshold time.Duration
 }
 
 func NewPool(cfg *PoolConfig) (ForwarderProvider, ClientRegistrar) {
@@ -95,7 +97,7 @@ func (cp *ForwarderPool) RegisterClient(addr string) {
 	}
 
 	// this is a new client
-	cp.entries = append(cp.entries, newForwardHandler(addr))
+	cp.entries = append(cp.entries, newForwardHandler(addr, cp.slowThreshold))
 	cp.notifTimes[addr] = time.Now()
 	log.Printf("INFO: added client %s for a total of %d", addr, len(cp.entries))
 }

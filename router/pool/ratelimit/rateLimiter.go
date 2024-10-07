@@ -10,11 +10,9 @@ const windowSize = 100
 type speed int
 
 const (
-	slow speed = iota
-	fast
+	fast speed = iota
+	slow
 )
-
-var slowAvgThreshold = time.Millisecond * 200
 
 // RateLimiter uses a circular buffer to keep track of the last N fast or slow counts.
 // these will be used to re-calculate the percentage of slow counts (Score).
@@ -27,12 +25,15 @@ type RateLimiter struct {
 	lock            sync.Mutex
 	lastHandleTime  time.Time
 	currentWaitTime time.Duration
+	slowThreshold   time.Duration
 }
 
-func NewRateLimiter() *RateLimiter {
+func NewRateLimiter(slowThreshold time.Duration) *RateLimiter {
 	return &RateLimiter{
-		window:       make([]speed, windowSize),
-		currentStage: stage_ok,
+		window:        make([]speed, windowSize),
+		currentStage:  stage_ok,
+		slowThreshold: slowThreshold,
+		fastCount:     100, // start out as if it's fast all the way
 	}
 }
 
@@ -41,11 +42,13 @@ func (w *RateLimiter) TrackNewDuration(newDuration time.Duration) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	newValue := fast
-	if newDuration > slowAvgThreshold {
+	if newDuration > w.slowThreshold {
 		newValue = slow
 	}
 	oldValue := w.window[w.position]
-	w.position = (w.position + 1) % windowSize
+	defer func() {
+		w.position = (w.position + 1) % windowSize
+	}()
 
 	if oldValue == newValue {
 		return
@@ -53,13 +56,21 @@ func (w *RateLimiter) TrackNewDuration(newDuration time.Duration) {
 
 	if oldValue == slow {
 		w.slowCount--
+		if w.slowCount < 0 {
+			w.slowCount = 0
+		}
 	} else {
 		w.fastCount--
+		if w.fastCount < 0 {
+			w.fastCount = 0
+		}
 	}
 
 	if newValue == slow {
+		w.window[w.position] = slow
 		w.slowCount++
 	} else {
+		w.window[w.position] = fast
 		w.fastCount++
 	}
 	w.lastHandleTime = time.Now()
@@ -92,14 +103,14 @@ func (w *RateLimiter) scoreLastN(n int) float64 {
 
 	startPos := w.position - 1
 	if startPos < 0 {
-		startPos = len(w.window)
+		startPos = len(w.window) - 1
 	}
 
 	slowCount, fastCount := 0, 0
 	for m := 0; m < n; m++ {
 		idx := startPos - m
 		if idx < 0 {
-			idx = len(w.window) + idx
+			idx = len(w.window) + idx - 1
 		}
 
 		if w.window[idx] == slow {

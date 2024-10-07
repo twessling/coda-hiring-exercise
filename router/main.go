@@ -17,6 +17,7 @@ func main() {
 	// configuration phase
 	poolConfig := &pool.PoolConfig{
 		MaxAgeNoNotif: env.MustGetDurationOrDefault("MAX_CLIENT_NO_NOTIF", time.Second*2),
+		SlowThreshold: env.MustGetDurationOrDefault("SLOW_THRESHOLD", time.Millisecond*200),
 	}
 	poolHandlerConfig := &handler.RegistryHandlerConfig{
 		ListenAddr: env.MustGetStringOrDefault("REGISTRY_ADDR", ":8081"),

@@ -71,7 +71,7 @@ func TestPoolNext(t *testing.T) {
 				a := []Forwarder{}
 				m := map[string]time.Time{}
 				for _, e := range entries {
-					a = append(a, newForwardHandler(e))
+					a = append(a, newForwardHandler(e, time.Second))
 					m[e] = time.Now()
 				}
 				return a, m
@@ -204,7 +204,7 @@ func TestCleanPool(t *testing.T) {
 				a := []Forwarder{}
 				m := map[string]time.Time{}
 				for _, e := range hosts {
-					a = append(a, newForwardHandler(e.addr))
+					a = append(a, newForwardHandler(e.addr, time.Second))
 					m[e.addr] = e.lastNotif
 				}
 				return a, m
@@ -270,7 +270,7 @@ func TestNextAndCleanInteraction(t *testing.T) {
 				a := []Forwarder{}
 				m := map[string]time.Time{}
 				for _, e := range hosts {
-					a = append(a, newForwardHandler(e.addr))
+					a = append(a, newForwardHandler(e.addr, time.Second))
 					m[e.addr] = e.lastNotif
 				}
 				return a, m

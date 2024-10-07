@@ -20,13 +20,13 @@ type forwardHandler struct {
 	rateLimiter *ratelimit.RateLimiter
 }
 
-func newForwardHandler(addr string) Forwarder {
+func newForwardHandler(addr string, slowThreshold time.Duration) Forwarder {
 	uri, _ := url.Parse(fmt.Sprintf("http://%s", addr)) // TODO: should the 'http://' be here or in the client's registration data?
 	proxy := httputil.NewSingleHostReverseProxy(uri)
 	return &forwardHandler{
 		addr:        addr,
 		proxy:       proxy,
-		rateLimiter: ratelimit.NewRateLimiter(),
+		rateLimiter: ratelimit.NewRateLimiter(slowThreshold),
 	}
 }
 
