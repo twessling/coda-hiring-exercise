@@ -8,47 +8,86 @@ import (
 	"time"
 )
 
-var errNoClients = errors.New("no available hosts to proxy request to")
+var errEmptyClients = errors.New("empty hosts list to proxy request to")
+var errNoClientsAvailable = errors.New("no available host to proxy request to")
+
+type ForwarderProvider interface {
+	Next() (Forwarder, error)
+	Run(ctx context.Context)
+}
+
+type ClientRegistrar interface {
+	RegisterClient(addr string)
+	DeRegisterClient(addr string)
+}
 
 type PoolConfig struct {
 	MaxAgeNoNotif time.Duration
+	SlowThreshold time.Duration
 }
 
-type ClientPool struct {
+type ForwarderPool struct {
 	lock          sync.Mutex
 	maxAgeNoNotif time.Duration
-	lastAddrIdx   int
-	addrs         []string
+	lastEntryIdx  int
+	entries       []Forwarder
 	notifTimes    map[string]time.Time
+	slowThreshold time.Duration
 }
 
-func NewPool(cfg *PoolConfig) *ClientPool {
-	return &ClientPool{
+func NewPool(cfg *PoolConfig) (ForwarderProvider, ClientRegistrar) {
+	p := &ForwarderPool{
 		maxAgeNoNotif: cfg.MaxAgeNoNotif,
-		lastAddrIdx:   0,
-		addrs:         []string{},
+		lastEntryIdx:  0,
+		entries:       []Forwarder{},
 		notifTimes:    map[string]time.Time{},
 	}
+	return p, p
 }
 
-func (cp *ClientPool) Next() (string, error) {
+func (cp *ForwarderPool) Next() (Forwarder, error) {
 	cp.lock.Lock()
 	defer cp.lock.Unlock()
 
-	if len(cp.addrs) == 0 {
-		return "", errNoClients
+	if len(cp.entries) == 0 {
+		return nil, errEmptyClients
 	}
 
-	if cp.lastAddrIdx >= len(cp.addrs) {
-		cp.lastAddrIdx = 0
+	if cp.lastEntryIdx >= len(cp.entries) {
+		cp.lastEntryIdx = 0
 	}
 
-	addr := cp.addrs[cp.lastAddrIdx]
-	cp.lastAddrIdx++
-	return addr, nil
+	idx := cp.lastEntryIdx
+
+	var hostEntry Forwarder
+	found := false
+	// check whether this Forwarder can actually handle the call; if not, try the next one.
+	// If you went through the complete list and haven't found anything, return error.
+	for {
+		hostEntry = cp.entries[idx]
+		idx++
+		if hostEntry.CanForward() {
+			found = true
+			break
+		}
+
+		if idx >= len(cp.entries) {
+			idx = 0
+		}
+
+		if idx == cp.lastEntryIdx {
+			break
+		}
+	}
+	if !found {
+		return nil, errNoClientsAvailable
+	}
+
+	cp.lastEntryIdx = idx
+	return hostEntry, nil
 }
 
-func (cp *ClientPool) registerClient(addr string) {
+func (cp *ForwarderPool) RegisterClient(addr string) {
 	cp.lock.Lock()
 	defer cp.lock.Unlock()
 	if _, ok := cp.notifTimes[addr]; ok {
@@ -58,34 +97,34 @@ func (cp *ClientPool) registerClient(addr string) {
 	}
 
 	// this is a new client
-	cp.addrs = append(cp.addrs, addr)
+	cp.entries = append(cp.entries, newForwardHandler(addr, cp.slowThreshold))
 	cp.notifTimes[addr] = time.Now()
-	log.Printf("INFO: added client %s for a total of %d", addr, len(cp.addrs))
+	log.Printf("INFO: added client %s for a total of %d", addr, len(cp.entries))
 }
 
-func (cp *ClientPool) deRegisterClient(addr string) {
+func (cp *ForwarderPool) DeRegisterClient(addr string) {
 	cp.lock.Lock()
 	defer cp.lock.Unlock()
 
 	delete(cp.notifTimes, addr)
-	for i := 0; i < len(cp.addrs); i++ {
-		if cp.addrs[i] == addr {
-			if i == len(cp.addrs)-1 {
-				cp.addrs = cp.addrs[:i] // If it's the last element, return up to the last
+	for i := 0; i < len(cp.entries); i++ {
+		if cp.entries[i].Host() == addr {
+			if i == len(cp.entries)-1 {
+				cp.entries = cp.entries[:i] // If it's the last element, return up to the last
 			} else {
-				cp.addrs = append(cp.addrs[:i], cp.addrs[i+1:]...)
+				cp.entries = append(cp.entries[:i], cp.entries[i+1:]...)
 			}
 			break
 		}
 	}
-	if cp.lastAddrIdx >= len(cp.addrs) {
+	if cp.lastEntryIdx >= len(cp.entries) {
 		// reset when necessary. Next() checks for proper value, but better to be explicit.
-		cp.lastAddrIdx = 0
+		cp.lastEntryIdx = 0
 	}
-	log.Printf("INFO: deregistered client %s for a total of %d", addr, len(cp.addrs))
+	log.Printf("INFO: deregistered client %s for a total of %d", addr, len(cp.entries))
 }
 
-func (cp *ClientPool) Run(ctx context.Context) {
+func (cp *ForwarderPool) Run(ctx context.Context) {
 	t := time.NewTicker(time.Second)
 	var needsClean bool
 
@@ -109,26 +148,29 @@ func (cp *ClientPool) Run(ctx context.Context) {
 	}
 }
 
-func (cp *ClientPool) cleanPool() {
+func (cp *ForwarderPool) cleanPool() {
 	cp.lock.Lock()
 	defer cp.lock.Unlock()
-	newAddrs := []string{}
+
+	newHostEntries := []Forwarder{}
 	newNotifTimes := map[string]time.Time{}
 	var removed []string
-	for _, addr := range cp.addrs {
+	for _, hostEntry := range cp.entries {
+		addr := hostEntry.Host()
 		notifTime := cp.notifTimes[addr]
 		if notifTime.Add(cp.maxAgeNoNotif).Before(time.Now()) {
 			removed = append(removed, addr)
 			continue
 		}
-		newAddrs = append(newAddrs, addr)
+		newHostEntries = append(newHostEntries, hostEntry)
 		newNotifTimes[addr] = notifTime
 	}
-	cp.addrs = newAddrs
+
+	cp.entries = newHostEntries
 	cp.notifTimes = newNotifTimes
-	if cp.lastAddrIdx >= len(cp.addrs) {
+	if cp.lastEntryIdx >= len(cp.entries) {
 		// reset when necessary. Next() checks for proper value, but better to be explicit.
-		cp.lastAddrIdx = 0
+		cp.lastEntryIdx = 0
 	}
-	log.Printf("Pool cleanup done, removed %d items. New pool size: %d", len(removed), len(cp.addrs))
+	log.Printf("Pool cleanup done, removed %d items. New pool size: %d", len(removed), len(cp.entries))
 }

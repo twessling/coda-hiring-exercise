@@ -1,4 +1,4 @@
-package router
+package handler
 
 import (
 	"context"
@@ -6,23 +6,20 @@ import (
 	"log"
 	"mrbarrel/router/pool"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"time"
 )
 
-type Config struct {
-	Addr       string
-	clientPool *pool.ClientPool
+type RouterConfig struct {
+	Addr string
 }
 
 type Router struct {
 	addr    string
-	clients *pool.ClientPool
+	clients pool.ForwarderProvider
 	mux     *http.ServeMux
 }
 
-func New(cfg *Config, clientPool *pool.ClientPool) *Router {
+func NewRouter(cfg *RouterConfig, clientPool pool.ForwarderProvider) *Router {
 	r := &Router{
 		addr:    cfg.Addr,
 		clients: clientPool,
@@ -52,13 +49,11 @@ func (r *Router) ListenAndServe(ctx context.Context) error {
 }
 
 func (r *Router) handle(w http.ResponseWriter, req *http.Request) {
-	clientAddr, err := r.clients.Next()
+	forwarder, err := r.clients.Next()
 	if err != nil {
 		log.Printf("could not get client: %v", err)
 		w.WriteHeader(http.StatusBadGateway)
 		return
 	}
-	uri, _ := url.Parse(fmt.Sprintf("http://%s", clientAddr)) // TODO: should the 'http://' be here or in the client's registration data?
-	proxy := httputil.NewSingleHostReverseProxy(uri)
-	proxy.ServeHTTP(w, req)
+	forwarder.Forward(w, req)
 }

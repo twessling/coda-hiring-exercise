@@ -13,7 +13,7 @@ services:
       image: coda-router
       environment:
         HTTP_ADDR: ":8080"
-        ROUTER_ADDR: ":8081"
+        REGISTRY_ADDR: ":8081"
       ports:
       # only expose 8080 to outside network, 8081 will be internal only
       - 8080:8080

@@ -5,8 +5,8 @@ import (
 	"log"
 	"mrbarrel/lib/env"
 	"mrbarrel/lib/shutdown"
+	"mrbarrel/router/handler"
 	"mrbarrel/router/pool"
-	"mrbarrel/router/router"
 	"sync"
 	"time"
 )
@@ -17,18 +17,19 @@ func main() {
 	// configuration phase
 	poolConfig := &pool.PoolConfig{
 		MaxAgeNoNotif: env.MustGetDurationOrDefault("MAX_CLIENT_NO_NOTIF", time.Second*2),
+		SlowThreshold: env.MustGetDurationOrDefault("SLOW_THRESHOLD", time.Millisecond*200),
 	}
-	poolHandlerConfig := &pool.HandlerConfig{
-		ListenAddr: env.MustGetStringOrDefault("ROUTER_ADDR", ":8081"),
+	poolHandlerConfig := &handler.RegistryHandlerConfig{
+		ListenAddr: env.MustGetStringOrDefault("REGISTRY_ADDR", ":8081"),
 	}
-	routerConfig := &router.Config{
+	routerConfig := &handler.RouterConfig{
 		Addr: env.MustGetStringOrDefault("HTTP_ADDR", ":8081"),
 	}
 
 	// wiring phase
-	clientPool := pool.NewPool(poolConfig)
-	poolHandler := pool.NewHandler(poolHandlerConfig, clientPool)
-	router := router.New(routerConfig, clientPool)
+	clientPool, clientRegistrar := pool.NewPool(poolConfig)
+	poolHandler := handler.NewRegistryHandler(poolHandlerConfig, clientRegistrar)
+	router := handler.NewRouter(routerConfig, clientPool)
 
 	// run phase
 	var wg sync.WaitGroup

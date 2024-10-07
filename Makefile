@@ -8,12 +8,14 @@ BINARY_ROUTER_NAME := coda-router
 NUM := 1
 
 # Targets
-.PHONY: help api-scale api-stop router-stop api-all-single api-makedocker-multiple api-start-single api-all-multiple compile-api docker-api start-api-multiple router-all router-compile router-makedocker router-start
+.PHONY: help all api-scale api-stop router-stop api-all-single api-makedocker-multiple api-start-single api-all-multiple compile-api docker-api start-api-multiple router-all router-compile router-makedocker router-start
 
 ########### API targets ##########
 
 help:
 	@echo "make usage:"
+	@echo
+	@echo "all\t\t\t\tcompile, build and run 3 instances of the API & 1 instance of router."
 	@echo
 	@echo "api-all [NUM=<1,2,..N>]\t\tcompile, build and run N instances of the api (executes api-compile, api-makedocker, api-start)"
 	@echo "api-stop\t\t\tstop all running instances of the api"
@@ -27,6 +29,14 @@ help:
 	@echo "router-compile\t\t\tcompile the router code"
 	@echo "router-makedocker\t\tbuild the docker image for the router"
 	@echo "router-run\t\t\tstart the router"
+
+########### all target ##########
+
+all:
+	$(MAKE) router-all
+	$(MAKE) api-all NUM=3
+
+########### API targets ##########
 
 # Build the Go binary for api
 api-compile:
